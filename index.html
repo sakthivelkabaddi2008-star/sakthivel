@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduGenie - Learning Assistant</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="container">
+    <section class="hero">
+      <h1>EduGenie</h1>
+      <p>Google Gemini Powered Learning Assistant</p>
+    </section>
+
+    <section class="card">
+      <label for="task">Choose a task</label>
+      <select id="task">
+        <option value="qa">Q&amp;A</option>
+        <option value="explain">Explain</option>
+        <option value="quiz">Quiz</option>
+        <option value="summarize">Summary</option>
+        <option value="learn/recommendations">Recommend Path</option>
+      </select>
+
+      <label for="inputText">Enter your question, topic, or text</label>
+      <textarea id="inputText" rows="9"
+        placeholder="Example: Explain the Pythagoras theorem in simple words."></textarea>
+
+      <button id="submitBtn">Submit</button>
+      <p id="status" class="status"></p>
+    </section>
+
+    <section class="card result-card">
+      <h2>Result</h2>
+      <div id="result" class="result">Your result will appear here.</div>
+    </section>
+  </main>
+
+<script>
+const task = document.getElementById("task");
+const input = document.getElementById("inputText");
+const button = document.getElementById("submitBtn");
+const result = document.getElementById("result");
+const status = document.getElementById("status");
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderQuiz(data) {
+  if (data.error) {
+    return `<p class="error">${escapeHtml(data.error)}</p>`;
+  }
+
+  return data.questions.map((q, i) => `
+    <div class="quiz-question">
+      <h3>${i + 1}. ${escapeHtml(q.question)}</h3>
+      ${q.options.map(option => `
+        <label class="option">
+          <input type="radio" name="q${i}" value="${escapeHtml(option)}">
+          <span>${escapeHtml(option)}</span>
+        </label>
+      `).join("")}
+      <button class="check-btn" onclick="checkAnswer(${i}, ${JSON.stringify(q.correct_answer)})">
+        Check answer
+      </button>
+      <div id="feedback-${i}" class="feedback"></div>
+    </div>
+  `).join("");
+}
+
+window.checkAnswer = function(index, correct) {
+  const selected = document.querySelector(`input[name="q${index}"]:checked`);
+  const feedback = document.getElementById(`feedback-${index}`);
+
+  if (!selected) {
+    feedback.textContent = "Please select an option.";
+    return;
+  }
+
+  if (selected.value === correct) {
+    feedback.textContent = "Correct!";
+  } else {
+    feedback.textContent = `Incorrect. Correct answer: ${correct}`;
+  }
+};
+
+button.addEventListener("click", async () => {
+  const text = input.value.trim();
+
+  if (!text) {
+    result.innerHTML = '<p class="error">Please enter some text.</p>';
+    return;
+  }
+
+  button.disabled = true;
+  status.textContent = "Working...";
+  result.textContent = "Generating your result...";
+
+  try {
+    const response = await fetch(`/${task.value}`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({text})
+    });
+
+    const data = await response.json();
+
+    if (task.value === "quiz") {
+      result.innerHTML = renderQuiz(data);
+    } else {
+      result.innerHTML = `<div class="text-result">${escapeHtml(data.result || data.error || "No result returned.")}</div>`;
+    }
+  } catch (error) {
+    result.innerHTML = `<p class="error">Request failed: ${escapeHtml(error.message)}</p>`;
+  } finally {
+    status.textContent = "";
+    button.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
